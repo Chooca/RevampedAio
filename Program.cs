@@ -7,9 +7,11 @@ using System.Threading.Tasks;
 using System.IO;
 using EnsoulSharp;
 using EnsoulSharp.SDK;
-
+using System.Reflection;
+using System.Security.Permissions;
 namespace RevampedAio
 {
+    [PermissionSet(SecurityAction.Assert, Unrestricted = true)]
     class Program
     {
         private static AIHeroClient Player => ObjectManager.Player;
@@ -18,6 +20,7 @@ namespace RevampedAio
             GameEvent.OnGameLoad += GameEventOnOnGameLoad;
         }
 
+
         private static void GameEventOnOnGameLoad()
         {
             switch (Player.CharacterName)
@@ -25,29 +28,26 @@ namespace RevampedAio
                 case "Cassiopeia":
                     Cassiopeia_Du_Couteau_2.Program.CassiopeiaLoading_OnLoadingComplete();
                     break;
+                    
             }
+            //Checkgit();
         }
-        public static void Check()
+        public static void Checkgit()
         {
-            try
+            using (var wb = new WebClient())
             {
+                var raw = wb.DownloadString("https://github.com/Chooca/RevampedAio/blob/master/version.txt");
 
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                bool wb = new WebClient().DownloadString("https://github.com/Chooca/RevampedAio/blob/master/version.txt").Contains("0.0.0.1");
-                if (!wb)
+                Version Version = Assembly.GetExecutingAssembly().GetName().Version;
+
+                if (raw != Version.ToString())
                 {
-                    Game.Print("<b><font Size='25' color='#0000b2'>RevampedAIO outdated version...Please Update!</font></b>");
+                    Game.Print("Oudated", raw);
                 }
                 else
-                    Game.Print("<b><font Size='35' color='#FF0000'>RevampedAIO loaded, current version(0.0.0.1)</font></b>");
-
-            }
-            catch (Exception E)
-            {
-                Console.WriteLine("An error try again " + E);
+                    Game.Print("Updated", Version.ToString());
             }
         }
-
 
     }
 }
