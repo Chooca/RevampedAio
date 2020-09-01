@@ -40,7 +40,7 @@ namespace Cassiopeia_Du_Couteau_2
                 return;
             }
             Game.Print("Cassiopeia Du Couteau loaded", System.Drawing.Color.Crimson);
-            _Q = new Spell(SpellSlot.Q, 750);//, SkillShotType.Circular, 400, int.MaxValue, 130);
+            _Q = new Spell(SpellSlot.Q, 850);//, SkillShotType.Circular, 400, int.MaxValue, 130);
             _W = new Spell(SpellSlot.W, 800);//, SkillShotType.Circular, 250, 250, 160);
             _E = new Spell(SpellSlot.E, 700);
             _R = new Spell(SpellSlot.R, 800);//, SkillShotType.Cone, 250, 250, 80);
