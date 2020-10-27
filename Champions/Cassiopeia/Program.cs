@@ -12,9 +12,10 @@ using Color = System.Drawing.Color;
 using static EnsoulSharp.SDK.Items;
 using SharpDX.Direct3D9;
 using SPrediction;
+using static RVMP.RevampedLibary.Extensions.Commons.Extensions;
 
 
-namespace Cassiopeia_Du_Couteau_2
+namespace CassiopeiaRVMP
 {
     static class Program
     {
@@ -29,8 +30,13 @@ namespace Cassiopeia_Du_Couteau_2
         public static Spell _Ignite;
         public static Item Seraph;
         public static Item Zhonia;
+        private static float lastQTime = 0f;
+        private static long LastQCast = 0;
+        private static long LastECast = 0;
+        private static Vector3 QPosition;
 
-        private static Menu StartMenu, ComboMenu, LastHitM, DebugC, DrawingsMenu, JungleMenu, ClearMenu, UtilityMenu, RSet, ESet, WSet, QSet, otheroptions;
+        private static Menu PredictionMenu, StartMenu, ComboMenu, LastHitM, DebugC, DrawingsMenu, JungleMenu, ClearMenu, UtilityMenu, RSet, ESet, WSet, QSet, otheroptions;
+
 
       
         public static void CassiopeiaLoading_OnLoadingComplete()
@@ -39,30 +45,34 @@ namespace Cassiopeia_Du_Couteau_2
             {
                 return;
             }
-            Game.Print("Cassiopeia Du Couteau loaded", System.Drawing.Color.Crimson);
-            _Q = new Spell(SpellSlot.Q, 850);//, SkillShotType.Circular, 400, int.MaxValue, 130);
-            _W = new Spell(SpellSlot.W, 800);//, SkillShotType.Circular, 250, 250, 160);
+            Game.Print("RVMP Cassiopeia by Czechux7", System.Drawing.Color.Blue);
+            _Q = new Spell(SpellSlot.Q, 825);
+            _W = new Spell(SpellSlot.W, 825);
             _E = new Spell(SpellSlot.E, 700);
-            _R = new Spell(SpellSlot.R, 800);//, SkillShotType.Cone, 250, 250, 80);
+            _R = new Spell(SpellSlot.R, 825);
+
+            _Q.SetSkillshot(0.6f, 75f, float.MaxValue, false, SkillshotType.Circle);
+            _W.SetSkillshot(0.25f, 90f, float.MaxValue, false, SkillshotType.Circle);
+            _E.SetTargetted(0.25f, float.MaxValue);
+            _R.SetSkillshot(0.5f, (float)(80 * Math.PI / 180), float.MaxValue, false, SkillshotType.Cone);
+
+
             Zhonia = new Item((int)ItemId.Zhonyas_Hourglass, 450);
             Seraph = new Item((int)ItemId.Seraphs_Embrace, 450);
             _Ignite = new Spell(ObjectManager.Player.GetSpellSlot("summonerdot"), 600);
-            StartMenu = new Menu("Cassiopeia", "Cassiopeia", true);
+            PredictionMenu = new Menu("PredictionMenu", "RVMP:Prediction Menu",true);
+            PredictionMenu.Add(new MenuList("PredSelect", "Select Prediction:", new[] { "RVMP Prediction", "Common Prediction" }, 0));
+            StartMenu = new Menu("Cassiopeia", "RVMP:Cassiopeia", true);
             ComboMenu = new Menu("General/Combo Settings", "General/Combo Settings");
             ClearMenu = new Menu("Clearing Menu", "Clearing Menu");
             JungleMenu = new Menu("JClearing Menu", "JClearing Menu");
             DrawingsMenu = new Menu("Drawing Settings", "Drawing Settings");
             DebugC = new Menu("Debug", "Debug");
-            ComboMenu.Add(new MenuSeparator("Cassiopeia Du Couteau by Horizon", "Cassiopeia Du Couteau by Czechu"));
-            ComboMenu.Add(new MenuList("PredHit", "Prediction", new[] { "HitChance :: High", "HitChance :: Medium", "HitChance :: Low" }) { Index = 1 });
-            ComboMenu.Add(new MenuBool("DrawStatus", "Draw Current Orbwalker mode ? [BETA]"));
-            ComboMenu.Add(new MenuSeparator("If you wanna use drawing orbwalker mode you need 16:9 resoultion,", "If you wanna use drawing orbwalker mode you need 16:9 resoultion,"));
-            ComboMenu.Add(new MenuSeparator("In future i will add customizable position.", "In future i will add customizable position."));
+            ComboMenu.Add(new MenuSeparator("Cassiopeia Du Couteau by Czechu7", "Cassiopeia Du Couteau by Czechu7"));
             ComboMenu.Add(new MenuBool("DisableAA", "Enable AA in Combo", true));
             QSet = new Menu("Q Spell Settings", "Q Spell Settings");
             QSet.Add(new MenuBool("UseQ", "Use [Q]"));
             QSet.Add(new MenuBool("UseQH", "Use [Q] in Harass"));
-            QSet.Add(new MenuBool("UseS", "Use [Q] Mana Saver?", false));
             QSet.Add(new MenuBool("UseQI", "Use always [Q] if enemy is immobile?"));
             QSet.Add(new MenuBool("UseQPok", "Use always [Q] if enemy is killable by Poison?"));
             QSet.Add(new MenuBool("QComboDash", "Always use [Q] on Dash end position?"));
@@ -70,15 +80,15 @@ namespace Cassiopeia_Du_Couteau_2
             WSet = new Menu("W Spell Settings", "W Spell Settings");
             WSet.Add(new MenuBool("UseW", "Use [W]"));
             WSet.Add(new MenuBool("UseWH", "Use [W] in Harass", false));
-            WSet.Add(new MenuBool("UseW2", "Try to hit =< 2 champions if can ?"));
+
             ComboMenu.Add(WSet);
             ESet = (new Menu("E Spell Settings", "E Spell Settings"));
             ESet.Add(new MenuBool("UseE", "Use [E]"));
             ESet.Add(new MenuBool("UseEH", "Use [E] in Harass"));
-            ESet.Add(new MenuBool("UseES", "Use [E] casting speedup ? (animation cancel)"));
             ESet.Add(new MenuBool("UseEK", "Use [E] always if enemy is killable?"));
+            ESet.Add(new MenuSlider("Edelay", "E Delay",0,0,5));
             ComboMenu.Add(ESet);
-            RSet = new Menu("R Spell Settings", "R Spell Settings");
+            RSet = new Menu("R Spell Settings", "R Spell Settings NOT IMPLEMENTED YET");
             RSet.Add(new MenuBool("UseR", "Use [R]"));
             RSet.Add(new MenuBool("UseRFace", "Use [R] only on facing enemy ?"));
             RSet.Add(new MenuBool("RGapClose", "Try use [R] for Gapclosing enemy ?", false));
@@ -116,55 +126,28 @@ namespace Cassiopeia_Du_Couteau_2
             DrawingsMenu.Add(new MenuSeparator("Tick for enable/disable spell drawings", "Tick for enable/disable spell drawings"));
             DrawingsMenu.Add(new MenuBool("DQ", "Draw [Q] range"));
             DrawingsMenu.Add(new MenuBool("QPred", "Draw [Q] Prediction"));
+            DrawingsMenu.Add(new MenuBool("QTarg", "Draw current target"));
             DrawingsMenu.Add(new MenuBool("DW", "Draw [W] range"));
             DrawingsMenu.Add(new MenuBool("DE", "Draw [E] range"));
             DrawingsMenu.Add(new MenuBool("DR", "Draw [R] range"));
-            DrawingsMenu.Add(new MenuBool("DRR", "Draw [RAA] range"));
             StartMenu.Add(DrawingsMenu);
             DebugC.Add(new MenuBool("Debug", "Debug Console+Chat", false));
             DebugC.Add(new MenuBool("DrawStatus1", "Debug Curret Orbawlker mode"));
             StartMenu.Add(DebugC);
+            PredictionMenu.Attach();
             StartMenu.Attach();
+
             Drawing.OnDraw += Drawing_OnDraw;
             Game.OnUpdate += Game_OnUpdate;
             Interrupter.OnInterrupterSpell += Interruptererer;
             Dash.OnDash += Dash_OnDash;
+            Gapcloser.OnGapcloser += Gapcloser_OnGapcloser;
+            
+
+
         }
 
-        //Extension Start
-        public static bool PoisonWillExpire(this AIBaseClient target, float time)
-        {
-            var buff = target.Buffs.OrderByDescending(x => x.EndTime).FirstOrDefault(x => x.Type == BuffType.Poison && x.IsActive && x.IsValid);
-            return buff == null || time > (buff.EndTime - Game.Time) * 1000f;
-        }
-        private static bool Immobile(AIBaseClient unit)
-        {
-            return unit.HasBuffOfType(BuffType.Charm) || unit.HasBuffOfType(BuffType.Stun) ||
-                   unit.HasBuffOfType(BuffType.Knockup) || unit.HasBuffOfType(BuffType.Snare) ||
-                   unit.HasBuffOfType(BuffType.Taunt) || unit.HasBuffOfType(BuffType.Suppression) ||
-                   unit.HasBuffOfType(BuffType.Polymorph);
-        }
-        public static List<AIMinionClient> GetGenericJungleMinionsTargets()
-        {
-            return GetGenericJungleMinionsTargetsInRange(float.MaxValue);
-        }
 
-        public static List<AIMinionClient> GetGenericJungleMinionsTargetsInRange(float range)
-        {
-            return GameObjects.Jungle.Where(m => !GameObjects.JungleSmall.Contains(m) && m.IsValidTarget(range)).ToList();
-        }
-
-        public static List<AIMinionClient> GetEnemyLaneMinionsTargets()
-        {
-            return GetEnemyLaneMinionsTargetsInRange(float.MaxValue);
-        }
-
-        public static List<AIMinionClient> GetEnemyLaneMinionsTargetsInRange(float range)
-        {
-            return GameObjects.EnemyMinions.Where(m => m.IsValidTarget(range)).ToList();
-        }
-
-        //Extension End
 
         private static void Game_OnUpdate(EventArgs args)
         {
@@ -189,7 +172,6 @@ namespace Cassiopeia_Du_Couteau_2
                     JungleClear();
                     break;
             }
-            Ignite();
             ImmobileQ();
             KillSteal();
             Zhonya();
@@ -315,24 +297,11 @@ namespace Cassiopeia_Du_Couteau_2
                     if (_E.IsReady() && ESet["UseES"].GetValue<MenuBool>().Enabled)
                     {
 
-                        _E.Cast(target);
-                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                        {
-                            Game.Print("Casting E with speedup");
-                            Console.WriteLine(Game.Time + "Casting E with Speedup");
-                        }
+                        if (Environment.TickCount >= LastECast + (1 * 100))
+                            _E.Cast(target);
 
                     }
-                    if (_E.IsReady() && !ESet["UseES"].GetValue<MenuBool>().Enabled)
-                    {
-                        _E.Cast(target);
-                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                        {
-                            Game.Print("Casting E with normal");
-                            Console.WriteLine(Game.Time + "Casting E with Speedup");
-                        }
-                    }
+
                 }
             }
             if (WSet["UseWH"].GetValue<MenuBool>().Enabled)
@@ -340,48 +309,13 @@ namespace Cassiopeia_Du_Couteau_2
                 if (!_W.IsReady() && _Player.Distance(target) >= 500) return;
                 {
 
-                    var Wpred = _W.GetPrediction(target);
-                    if (Wpred.Hitchance >= HitChance.High && target.IsValidTarget(_W.Range))
+
+                    if (_W.IsReady() && Environment.TickCount > LastQCast + _Q.Delay * 1000)
                     {
-                        if (WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                        {
-                            var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_W.Range));
-                            if (Enemys != null)
-                            {
-                                if (Enemys.Count() >= 2)
-                                {
-                                    _W.Cast(target.Position);
-                                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                    {
+                        _W.Cast(PreCastPos(target, _Player.Position.Distance(target.Position) / _W.Speed));
 
-                                        Game.Print("Casting W Found more than >= 2 People ");
-                                        Console.WriteLine("Casting W Found more than >= 2 People");
-                                    }
-                                }
-                                else if (Enemys.Count() >= 1)
-                                {
-                                    _W.Cast(target.Position);
-                                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                    {
-
-                                        Game.Print("Casting W Found more than >= 1 People ");
-                                        Console.WriteLine("Casting W Found more than >= 1 People");
-                                    }
-                                }
-                            }
-                        }
                     }
 
-                }
-            }
-            if (!WSet["UseW2"].GetValue<MenuBool>().Enabled)
-            {
-                _W.Cast(target.Position);
-                if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                {
-
-                    Game.Print("Casting W ");
-                    Console.WriteLine("Casting W");
                 }
             }
 
@@ -389,56 +323,12 @@ namespace Cassiopeia_Du_Couteau_2
             {
                 if (_Q.IsReady())
                 {
-                    var canHitMoreThanOneTarget =
-                      GameObjects.EnemyHeroes.OrderByDescending(x => x.CountEnemyHeroesInRange(_Q.Width))
-                      .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyHeroesInRange(_Q.Width) >= 1);
-                    if (canHitMoreThanOneTarget != null)
-                    {
-                        var getAllTargets = GameObjects.EnemyHeroes.Find(x => x.IsValidTarget() && x.IsValidTarget(_Q.Width));
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.Hitchance >= HitChance.High && target.IsValidTarget(_Q.Range))
-                        {
-                            _Q.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-
-                                Game.Print("FOUND 1 PEOPLE FOR Q ");
-                                Console.WriteLine("FOUND 1 PEOPLE FOR Q");
-                            }
-                        }
-                    }
+                        _Q.Cast(PreCastPos(target, 0.6f));
                 }
             }
-            if (QSet["UseQH"].GetValue<MenuBool>().Enabled)
-            {
 
-                if (!target.IsValidTarget(_Q.Range))
-                    return;
-                {
-                    if (_Q.IsReady() && QSet["UseS"].GetValue<MenuBool>().Enabled)
-                    {
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.Hitchance >= HitChance.High && target.IsValidTarget(_Q.Range))
-                        {
-                            if (!target.PoisonWillExpire(250))
-                                return;
-                            {
-                                _Q.Cast(target.Position);
-                                if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                {
-
-                                    Game.Print("Casting Q with HIGH pred saver ");
-                                    Console.WriteLine("Casting Q with HIGH pred saver ");
-                                    ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                                }
-                            }
-                        }
-
-                    }
-
-                }
-            }
         }
+
         private static void Zhonya()
         {
             var Zhonya = otheroptions["Zhonya"].GetValue<MenuBool>().Enabled;
@@ -489,104 +379,25 @@ namespace Cassiopeia_Du_Couteau_2
                 if (target == null)
                     return;
                 Drawing.DrawCircle(_Q.GetPrediction(target).CastPosition, _Q.Width, System.Drawing.Color.Violet);
+                {
+                    if (Variables.GameTimeTickCount - lastQTime > 1000)
+                        return;
 
+                    Drawing.DrawCircle(QPosition, _Q.Width, System.Drawing.Color.Green);
+                }
             }
-            if (ComboMenu["DrawStatus"].GetValue<MenuBool>().Enabled)
-
+            if (DrawingsMenu["QTarg"].GetValue<MenuBool>().Enabled && _Q.IsReady())
             {
-                if (Harass && !Combo && LaneClear && LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.93f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                }
-                if (Harass && Combo && !LaneClear && LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.93f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                }
-                if (Harass && Combo && LaneClear && !LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.93f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-                if (Harass && Combo && LaneClear && LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.93f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.95f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-                if (Harass && !Combo && !LaneClear && LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                }
-                if (Harass && Combo && !LaneClear && !LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                }
-
-                if (Harass && LaneClear && !Combo && !LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-                if (Harass && !LaneClear && !Combo && !LastHit)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
-                }
-                if (LaneClear && LastHit && !Combo && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-                if (LaneClear && Combo && !LastHit && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-                if (LaneClear && LastHit && Combo && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.93f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-                if (LaneClear && !LastHit && !Combo && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: LaneClear ]");
-                }
-
-                if (LastHit && Combo && !LaneClear && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.91f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                }
-                if (LastHit && !Combo && !LaneClear && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: LastHit ]");
-                }
-
-                if (Combo && !LastHit && !LaneClear && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Combo ]");
-                }
-
-                else if (!Combo && !LastHit && !LaneClear && !Harass)
-                {
-                    Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: None ]");
-                }
+                if (target == null)
+                    return;
+                Drawing.DrawCircle(target.Position, 150, Color.Red);
             }
         }
-        private static void Combo()
-        {
 
-            var HighP = ComboMenu["PredHit"].GetValue<MenuList>().Index == 0;
-            var MediumP = ComboMenu["PredHit"].GetValue<MenuList>().Index == 1;
-            var LowP = ComboMenu["PredHit"].GetValue<MenuList>().Index == 2;
+            private static void Combo()
+            {
+
+            var EDelay = ESet["Edelay"].GetValue<MenuSlider>().Value;
             var target = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
             var targetQ2 = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
             if (target == null)
@@ -605,637 +416,118 @@ namespace Cassiopeia_Du_Couteau_2
             {
                 Orbwalker.AttackState = false;
             }
-            if (HighP)
+            if(PredictionMenu["PredSelect"].GetValue<MenuList>().Index == 0)
             {
-                if (ESet["UseE"].GetValue<MenuBool>().Enabled)
-                {
-                    if (!target.IsValidTarget(_E.Range) && !_E.IsReady())
-                        return;
+
+
+                if(_E.IsReady() & target.IsValidTarget(_E.Range))
                     {
-                        if (_E.IsReady() && ESet["UseES"].GetValue<MenuBool>().Enabled)
-                        {
-
-                            _E.Cast(target);
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-                                Game.Print("Casting E with speedup");
-                                Console.WriteLine(Game.Time + "Casting E with Speedup");
-                            }
-
-                        }
-                        if (_E.IsReady() && !ESet["UseES"].GetValue<MenuBool>().Enabled)
-                        {
-                            _E.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-                                Game.Print("Casting E with normal");
-                                Console.WriteLine(Game.Time + "Casting E with Speedup");
-                            }
-                        }
-                    }
+                         if (Environment.TickCount >= LastECast + (EDelay * 100))
+                         _E.Cast(target);
+                    Game.Print("Casting E RVMP");
                 }
-
-                if (WSet["UseW"].GetValue<MenuBool>().Enabled)
-                {
-                    if (!_W.IsReady() && _Player.Distance(target) >= 500) return;
-                    {
-
-                        var Wpred = _W.GetPrediction(target);
-                        if (Wpred.Hitchance >= HitChance.High && target.IsValidTarget(_W.Range))
-                        {
-                            if (WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                            {
-                                var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_W.Range));
-                                if (Enemys != null)
-                                {
-                                    if (Enemys.Count() >= 2)
-                                    {
-                                        _W.Cast(target.Position);
-                                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                        {
-
-                                            Game.Print("Casting W Found more than >= 2 People ");
-                                            Console.WriteLine("Casting W Found more than >= 2 People");
-                                        }
-                                    }
-                                    else if (Enemys.Count() >= 1)
-                                    {
-                                        _W.Cast(target.Position);
-                                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                        {
-
-                                            Game.Print("Casting W Found more than >= 1 People ");
-                                            Console.WriteLine("Casting W Found more than >= 1 People");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                    }
-                }
-                if (!WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                {
-                    _W.Cast(target.Position);
-                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                    {
-
-                        Game.Print("Casting W ");
-                        Console.WriteLine("Casting W");
-                    }
-                }
-
-
-                if (QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-                    if (_Q.IsReady())
-                    {
-                        var canHitMoreThanOneTarget =
-                          GameObjects.EnemyHeroes.OrderByDescending(x => x.CountEnemyHeroesInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyHeroesInRange(_Q.Width) >= 1);
-                        if (canHitMoreThanOneTarget != null)
-                        {
-                            var getAllTargets = GameObjects.EnemyHeroes.Find(x => x.IsValidTarget() && x.IsValidTarget(_Q.Width));
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.Hitchance >= HitChance.High && target.IsValidTarget(_Q.Range))
-                            {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                {
-
-                                    Game.Print("FOUND 1 PEOPLE FOR Q ");
-                                    Console.WriteLine("FOUND 1 PEOPLE FOR Q");
-                                }
-                            }
-                        }
-                    }
-                }
-                if (QSet["UseQ"].GetValue<MenuBool>().Enabled)
+                if (_Q.IsReady())
                 {
 
-                    if (!target.IsValidTarget(_Q.Range))
-                        return;
-                    {
-                        if (_Q.IsReady() && QSet["UseS"].GetValue<MenuBool>().Enabled)
-                        {
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.Hitchance >= HitChance.High && target.IsValidTarget(_Q.Range))
-                            {
-                                if (!target.PoisonWillExpire(250))
-                                    return;
-                                {
-                                    _Q.Cast(target.Position);
-                                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                    {
-
-                                        Game.Print("Casting Q with HIGH pred saver ");
-                                        Console.WriteLine("Casting Q with HIGH pred saver ");
-                                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                                    }
-                                }
-                            }
-
-                        }
-
-                    }
-                }
-
-                if (!QSet["UseS"].GetValue<MenuBool>().Enabled && QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-                    if (_Q.IsReady())
-                    {
-
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.Hitchance >= HitChance.High && target.IsValidTarget(_Q.Range))
-                        {
-                            _Q.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-
-                                Game.Print("Casting Q with HIGH pred ");
-                                Console.WriteLine("Casting Q with HIGH pred ");
-                                ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                            }
-                        }
-                    }
-
-
+                    _Q.Cast(PreCastPos(target, 0.6f));
 
                 }
-
-                if (RSet["UseR"].GetValue<MenuBool>().Enabled && RSet["UseRG"].GetValue<MenuBool>().Enabled && _R.IsReady())
+                if (_W.IsReady() && Environment.TickCount > LastQCast + _Q.Delay * 1000)
                 {
-                    var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_R.Range - 25));
-                    if (Enemys != null)
-                    {
-                        if (Enemys.Count() >= RSet["UseRGs"].GetValue<MenuSlider>().Value && target.IsFacing(_Player) && RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target);
-                        }
-                        if (Enemys.Count() >= RSet["UseRGs"].GetValue<MenuSlider>().Value && !RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target);
-                        }
-                    }
+                    _W.Cast(PreCastPos(target, _Player.Position.Distance(target.Position) / _W.Speed));
 
                 }
-
-                if (RSet["UseR"].GetValue<MenuBool>().Enabled && _R.IsReady())
+            }
+            if (PredictionMenu["PredSelect"].GetValue<MenuList>().Index == 1)
+            {
+                if (_E.IsReady() & target.IsValidTarget(_E.Range))
                 {
-                    if (!_R.IsReady()) return;
-                    {
-                        if (target.IsFacing(_Player) && target.IsValidTarget(_R.Range) && RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target.Position);
-                        }
-                    }
-                    if (target.IsValidTarget(_R.Range) && !RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                    {
-                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                        _R.Cast(target.Position);
-                    }
+
+                        _E.Cast(target);
+                    Game.Print("Casting E Common");
+                }
+                if (_Q.IsReady())
+                {
+
+                    _Q.Cast(target);
+
+                }
+                if (_W.IsReady() && Environment.TickCount > LastQCast + _Q.Delay * 1000)
+                {
+                    _W.Cast(target);
 
                 }
             }
 
-            if (MediumP)
-            {
-                if (ESet["UseE"].GetValue<MenuBool>().Enabled)
-                {
-                    if (!target.IsValidTarget(_E.Range) && !_E.IsReady())
-                        return;
-                    {
-                        if (_E.IsReady() && ESet["UseES"].GetValue<MenuBool>().Enabled)
-                        {
-
-                            _E.Cast(target);
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-                                Game.Print("Casting E with speedup");
-                                Console.WriteLine(Game.Time + "Casting E with Speedup");
-                            }
-
-                        }
-                        if (_E.IsReady() && !ESet["UseES"].GetValue<MenuBool>().Enabled)
-                        {
-                            _E.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-                                Game.Print("Casting E with normal");
-                                Console.WriteLine(Game.Time + "Casting E with Speedup");
-                            }
-                        }
-                    }
-                }
-
-                if (WSet["UseW"].GetValue<MenuBool>().Enabled)
-                {
-                    if (!_W.IsReady() && _Player.Distance(target) >= 500) return;
-                    {
-
-                        var Wpred = _W.GetPrediction(target);
-                        if (Wpred.Hitchance >= HitChance.Medium && target.IsValidTarget(_W.Range))
-                        {
-                            if (WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                            {
-                                var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_W.Range));
-                                if (Enemys != null)
-                                {
-                                    if (Enemys.Count() >= 2)
-                                    {
-                                        _W.Cast(target.Position);
-                                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                        {
-
-                                            Game.Print("Casting W Found more than >= 2 People ");
-                                            Console.WriteLine("Casting W Found more than >= 2 People");
-                                        }
-                                    }
-                                    else if (Enemys.Count() >= 1)
-                                    {
-                                        _W.Cast(target.Position);
-                                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                        {
-
-
-                                            Game.Print("Casting W Found more than >= 1 People ");
-                                            Console.WriteLine("Casting W Found more than >= 1 People");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                    }
-                }
-                if (!WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                {
-                    _W.Cast(target.Position);
-                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                    {
-
-                        Game.Print("Casting W ");
-                        Console.WriteLine("Casting W");
-                    }
-                }
-                if (QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-                    if (_Q.IsReady())
-                    {
-                        var canHitMoreThanOneTarget =
-                          GameObjects.EnemyHeroes.OrderByDescending(x => x.CountEnemyHeroesInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyHeroesInRange(_Q.Width) >= 1);
-                        if (canHitMoreThanOneTarget != null)
-                        {
-                            var getAllTargets = GameObjects.EnemyHeroes.Find(x => x.IsValidTarget() && x.IsValidTarget(_Q.Width));
-                            //var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.Position) / getAllTargets.Count
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.Hitchance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
-                            {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                {
-
-                                    Game.Print("FOUND 1 PEOPLE FOR Q ");
-                                    Console.WriteLine("FOUND 1 PEOPLE FOR Q");
-                                }
-                            }
-                        }
-
-                    }
-
-                }
-                if (QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-
-                    if (!target.IsValidTarget(_Q.Range))
-                        return;
-                    {
-                        if (_Q.IsReady() && QSet["UseS"].GetValue<MenuBool>().Enabled)
-                        {
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.Hitchance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
-                            {
-                                if (!target.PoisonWillExpire(250))
-                                    return;
-                                {
-                                    _Q.Cast(target.Position);
-                                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                    {
-
-                                        Game.Print("Casting Q with HIGH pred saver ");
-                                        Console.WriteLine("Casting Q with HIGH pred saver ");
-                                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                                    }
-                                }
-
-                            }
-
-
-                        }
-
-                    }
-                }
-
-                if (!QSet["UseS"].GetValue<MenuBool>().Enabled && QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-                    if (_Q.IsReady())
-                    {
-
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.Hitchance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
-                        {
-                            _Q.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-
-                                Game.Print("Casting Q with HIGH pred ");
-                                Console.WriteLine("Casting Q with HIGH pred ");
-                                ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                            }
-                        }
-
-                    }
-
-
-
-                }
-
-                if (RSet["UseR"].GetValue<MenuBool>().Enabled && RSet["UseRG"].GetValue<MenuBool>().Enabled && _R.IsReady())
-                {
-                    var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_R.Range - 25));
-                    if (Enemys != null)
-                    {
-                        if (Enemys.Count() >= RSet["UseRGs"].GetValue<MenuSlider>().Value && target.IsFacing(_Player) && RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target);
-                        }
-                        if (Enemys.Count() >= RSet["UseRGs"].GetValue<MenuSlider>().Value && !RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target);
-                        }
-                    }
-
-
-                }
-
-                if (RSet["UseR"].GetValue<MenuBool>().Enabled && _R.IsReady())
-                {
-                    if (!_R.IsReady()) return;
-                    {
-                        if (target.IsFacing(_Player) && target.IsValidTarget(_R.Range) && RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target.Position);
-                        }
-                    }
-                    if (target.IsValidTarget(_R.Range) && !RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                    {
-                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                        _R.Cast(target.Position);
-                    }
-
-                }
-            }
-            if (LowP)
-            {
-                if (ESet["UseE"].GetValue<MenuBool>().Enabled)
-                {
-                    if (!target.IsValidTarget(_E.Range) && !_E.IsReady())
-                        return;
-                    {
-                        if (_E.IsReady() && ESet["UseES"].GetValue<MenuBool>().Enabled)
-                        {
-
-                            _E.Cast(target);
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-                                Game.Print("Casting E with speedup");
-                                Console.WriteLine(Game.Time + "Casting E with Speedup");
-                            }
-
-
-                        }
-                        if (_E.IsReady() && !ESet["UseES"].GetValue<MenuBool>().Enabled)
-                        {
-                            _E.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-                                Game.Print("Casting E with normal");
-                                Console.WriteLine(Game.Time + "Casting E with Speedup");
-                            }
-                        }
-                    }
-                }
-
-                if (WSet["UseW"].GetValue<MenuBool>().Enabled)
-                {
-                    if (!_W.IsReady() && _Player.Distance(target) >= 500) return;
-                    {
-
-                        var Wpred = _W.GetPrediction(target);
-                        if (Wpred.Hitchance >= HitChance.Low && target.IsValidTarget(_W.Range))
-                        {
-                            if (WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                            {
-                                var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_W.Range));
-                                if (Enemys != null)
-                                {
-                                    if (Enemys.Count() >= 2)
-                                    {
-                                        _W.Cast(target.Position);
-                                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                        {
-
-                                            Game.Print("Casting W Found more than >= 2 People ");
-                                            Console.WriteLine("Casting W Found more than >= 2 People");
-                                        }
-                                    }
-                                    else if (Enemys.Count() >= 1)
-                                    {
-                                        _W.Cast(target.Position);
-                                        if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                        {
-
-                                            Game.Print("Casting W Found more than >= 1 People ");
-                                            Console.WriteLine("Casting W Found more than >= 1 People");
-                                        }
-                                    }
-
-                                }
-                            }
-                        }
-
-                    }
-                }
-                if (!WSet["UseW2"].GetValue<MenuBool>().Enabled)
-                {
-                    _W.Cast(target.Position);
-                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                    {
-
-                        Game.Print("Casting W ");
-                        Console.WriteLine("Casting W");
-                    }
-                }
-//radi is gay again
-                if (QSet["UseQ"].GetValue<MenuBool>().Enabled && QSet["UseQ2"].GetValue<MenuBool>().Enabled)
-                {
-                    if (_Q.IsReady())
-                    {
-                        var canHitMoreThanOneTarget =
-                          GameObjects.EnemyHeroes.OrderByDescending(x => x.CountEnemyHeroesInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyHeroesInRange(_Q.Width) >= 1);
-                        if (canHitMoreThanOneTarget != null)
-                        {
-                            var getAllTargets = GameObjects.EnemyHeroes.Find(x => x.IsValidTarget() && x.IsValidTarget(_Q.Width));
-                            //var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.Position) / getAllTargets.Count;
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.Hitchance >= HitChance.Low && target.IsValidTarget(_Q.Range))
-                            {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                {
-
-                                    Game.Print("FOUND 1 PEOPLE FOR Q ");
-                                    Console.WriteLine("FOUND 1 PEOPLE FOR Q");
-                                }
-                            }
-                        }
-                    }
-                }
-                if (QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-
-                    if (!target.IsValidTarget(_Q.Range))
-                        return;
-                    {
-                        if (_Q.IsReady() && QSet["UseS"].GetValue<MenuBool>().Enabled)
-                        {
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.Hitchance >= HitChance.Low && target.IsValidTarget(_Q.Range))
-                            {
-                                if (!target.PoisonWillExpire(250))
-                                    return;
-                                {
-                                    _Q.Cast(target.Position);
-                                    if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                                    {
-
-                                        Game.Print("Casting Q with HIGH pred saver ");
-                                        Console.WriteLine("Casting Q with HIGH pred saver ");
-                                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                                    }
-                                }
-                            }
-
-                        }
-
-                    }
-                }
-
-                if (!QSet["UseS"].GetValue<MenuBool>().Enabled && QSet["UseQ"].GetValue<MenuBool>().Enabled)
-                {
-                    if (_Q.IsReady())
-                    {
-
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.Hitchance >= HitChance.Low && target.IsValidTarget(_Q.Range))
-                        {
-                            _Q.Cast(target);
-                            if (DebugC["Debug"].GetValue<MenuBool>().Enabled)
-                            {
-
-                                Game.Print("Casting Q with HIGH pred ");
-                                Console.WriteLine("Casting Q with HIGH pred ");
-                                ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,Game.CursorPos);
-                            }
-                        }
-                    }
-
-
-
-                }
-
-                if (RSet["UseR"].GetValue<MenuBool>().Enabled && RSet["UseRG"].GetValue<MenuBool>().Enabled && _R.IsReady())
-                {
-                    var Enemys = GameObjects.EnemyHeroes.Where(x => x.IsValidTarget(_R.Range - 25));
-                    if (Enemys != null)
-                    {
-                        if (Enemys.Count() >= RSet["UseRGs"].GetValue<MenuSlider>().Value && target.IsFacing(_Player) && RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target);
-                        }
-                        if (Enemys.Count() >= RSet["UseRGs"].GetValue<MenuSlider>().Value && !RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target);
-                        }
-                    }
-
-                }
-
-                if (RSet["UseR"].GetValue<MenuBool>().Enabled && _R.IsReady())
-                {
-                    if (!_R.IsReady()) return;
-                    {
-                        if (target.IsFacing(_Player) && target.IsValidTarget(_R.Range) && RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                        {
-                            ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target.Position);
-                        }
-                    }
-                    if (target.IsValidTarget(_R.Range) && !RSet["UseRFace"].GetValue<MenuBool>().Enabled)
-                    {
-                        ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                        _R.Cast(target.Position);
-                    }
-
-                }
-            }
         }
+
+        private static Vector3 PreCastPos(AIHeroClient Hero, float Delay)
+        {
+            float value = 0f;
+            if (Hero.IsFacing(_Player))
+            {
+                value = (50f - Hero.BoundingRadius);
+            }
+            else
+            {
+                value = -(100f - Hero.BoundingRadius);
+            }
+            var distance = Delay * Hero.MoveSpeed + value;
+            var path = Hero.GetWaypoints();
+
+            for (var i = 0; i < path.Count - 1; i++)
+            {
+                var a = path[i];
+                var b = path[i + 1];
+                var d = a.Distance(b);
+
+                if (d < distance)
+                {
+                    distance -= d;
+                }
+                else
+                {
+                    return (a + distance * (b - a).Normalized()).ToVector3();
+                }
+            }
+
+
+            return (path[path.Count - 1]).ToVector3();
+        }
+
+
         private static void Interruptererer(AIBaseClient sender, Interrupter.InterruptSpellArgs args)
         {
+            var target = TargetSelector.GetTarget(_R.Range, DamageType.Magical);
+            if (target == null)
+            {
+                return;
+            }
             var RintTarget = TargetSelector.GetTarget(_R.Range, DamageType.Magical);
             if (RintTarget == null) return;
             if (_R.IsReady() && sender.IsValidTarget(_R.Range) && ComboMenu["Rint"].GetValue<MenuBool>().Enabled)
                 _R.Cast(RintTarget);
 
         }
+
         private static void Gapcloser_OnGapcloser(AIHeroClient sender, Gapcloser.GapcloserArgs e)
         {
-            if (!ComboMenu["RGapClose"].GetValue<MenuBool>().Enabled) return;
-            if (sender.IsEnemy)
-                _R.Cast(sender);
-        }
-        public static void Ignite()
-        {
-            var target = TargetSelector.GetTarget(_Ignite.Range, DamageType.True);
+            var target = TargetSelector.GetTarget(_R.Range, DamageType.Magical);
             if (target == null)
             {
                 return;
             }
-            if (otheroptions["Ignite"].GetValue<MenuBool>().Enabled && !_Ignite.IsReady() && target.IsValidTarget()) return;
-
-            {
-                if (target.Health + target.PhysicalShield <
-                    _Player.GetSummonerSpellDamage(target, SummonerSpell.Ignite))
-                {
-                    _Ignite.Cast(target);
-                }
-            }
+            if (!ComboMenu["RGapClose"].GetValue<MenuBool>().Enabled) return;
+            if (sender.IsEnemy)
+                _R.Cast(sender);
         }
         private static void Dash_OnDash(AIBaseClient sender, Dash.DashArgs e)
         {
+            var target = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
+            if (target == null)
+            {
+                return;
+            }
             if (!QSet["QComboDash"].GetValue<MenuBool>().Enabled) return;
             if (!sender.IsEnemy) return;
             if (!_Q.IsReady()) return;
@@ -1245,7 +537,7 @@ namespace Cassiopeia_Du_Couteau_2
         public static void KillSteal()
         {
             var targetQ = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
-            var targetE = TargetSelector.GetTarget(_W.Range, DamageType.Magical);
+            var targetE = TargetSelector.GetTarget(_E.Range, DamageType.Magical);
             if (targetQ == null)
             {
                 return;
@@ -1285,6 +577,7 @@ namespace Cassiopeia_Du_Couteau_2
         }
         private static void ImmobileQ()
         {
+
             var target = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
             if (target == null)
             {
